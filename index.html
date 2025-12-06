@@ -421,7 +421,47 @@ async function registerWithEmail(name, username, email, pass) {
   });
   return user;
 }
-
+async function handleGitHubSignIn() {
+  const provider = new firebase.auth.GithubAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+    // успешный вход
+  } catch (error) {
+    if (error.code === 'auth/account-exists-with-different-credential') {
+      const email = error.email;
+      const pendingCred = error.credential;
+      
+      // Получаем методы входа для этого email
+      const methods = await auth.fetchSignInMethodsForEmail(email);
+      
+      if (methods.length > 0) {
+        if (methods.includes(firebase.auth.EmailAuthProvider.EMAIL_PASSWORD_SIGN_IN_METHOD)) {
+          // Есть аккаунт с этим email через email/password
+          alert(`Аккаунт уже существует с этим email. Войдите через email и пароль.`);
+          // можно показать форму входа через email/password
+        } else if (methods.includes('password')) {
+          // Войти через email/password
+          const password = prompt('Введите пароль для этого email:');
+          if (password) {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            // После входа привязать GitHub к существующему аккаунту
+            await userCredential.user.linkWithCredential(pendingCred);
+            alert('Аккаунты связаны.');
+            // далее инициализация
+          }
+        } else if (methods.includes('google.com')) {
+          // В этом случае пользователь зарегистрирован через Google, можно предложить вход через Google
+          alert(`Этот email уже связан с аккаунтом Google. Войдите через Google.`);
+        } else {
+          // Другие провайдеры
+          alert(`Этот email уже связан с другим провайдером: ${methods.join(', ')}.`);
+        }
+      }
+    } else {
+      alert('Ошибка входа: '+error.message);
+    }
+  }
+}
 // Phone auth helpers
 function setupRecaptcha() {
   window.recaptchaVerifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'invisible'});
